@@ -15,7 +15,7 @@ RECENCY_HOURS = 48
 MAX_ARTICLES_PER_FEED = 5
 MAX_TOTAL_ARTICLES = 30
 
-CLAUDE_MODEL = "claude-sonnet-4-6"
+GEMINI_MODEL = "gemini-2.0-flash"
 EMAIL_WORD_LIMIT = 600
 
 SMTP_HOST = "smtp.gmail.com"

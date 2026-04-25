@@ -4,7 +4,7 @@ import sys
 
 from dotenv import load_dotenv
 
-from ai_summarizer import SummarizerError, get_anthropic_client, summarize_and_filter
+from ai_summarizer import SummarizerError, get_gemini_client, summarize_and_filter
 from config import MAX_TOTAL_ARTICLES, RECENCY_HOURS, RSS_FEEDS
 from email_sender import EmailSendError, send_email
 from news_collector import collect_all_articles
@@ -22,7 +22,7 @@ def setup_logging() -> None:
 def load_and_validate_env() -> dict:
     load_dotenv()
     required = {
-        "ANTHROPIC_API_KEY": "Anthropic Claude API key",
+        "GEMINI_API_KEY": "Google Gemini API key (free at aistudio.google.com)",
         "GMAIL_SENDER": "Gmail sender address",
         "GMAIL_APP_PASSWORD": "Gmail App Password (not your main password)",
         "RECIPIENT_EMAIL": "Recipient email address",
@@ -68,11 +68,11 @@ def run() -> int:
 
     if len(articles) > MAX_TOTAL_ARTICLES:
         articles = articles[:MAX_TOTAL_ARTICLES]
-        logger.info("Capped at %d articles for Claude", MAX_TOTAL_ARTICLES)
+        logger.info("Capped at %d articles for Gemini", MAX_TOTAL_ARTICLES)
 
-    logger.info("Sending %d articles to Claude for filtering and summarization...", len(articles))
+    logger.info("Sending %d articles to Gemini for filtering and summarization...", len(articles))
     try:
-        client = get_anthropic_client(env["ANTHROPIC_API_KEY"])
+        client = get_gemini_client(env["GEMINI_API_KEY"])
         email_body = summarize_and_filter(articles, client)
     except SummarizerError as exc:
         logger.error("Summarization failed: %s", exc)

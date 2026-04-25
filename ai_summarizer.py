@@ -1,8 +1,9 @@
+import datetime
 import logging
 
-import anthropic
+import google.generativeai as genai
 
-from config import CLAUDE_MODEL, EMAIL_WORD_LIMIT
+from config import EMAIL_WORD_LIMIT, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +60,12 @@ class SummarizerError(Exception):
     pass
 
 
-def get_anthropic_client(api_key: str) -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=api_key)
+def get_gemini_client(api_key: str) -> genai.GenerativeModel:
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=_SYSTEM_PROMPT,
+    )
 
 
 def _build_article_payload(articles: list[dict]) -> str:
@@ -76,8 +81,7 @@ def _build_article_payload(articles: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def summarize_and_filter(articles: list[dict], client: anthropic.Anthropic) -> str:
-    import datetime
+def summarize_and_filter(articles: list[dict], client: genai.GenerativeModel) -> str:
     today = datetime.date.today().strftime("%B %d, %Y")
     payload = _build_article_payload(articles)
 
@@ -90,35 +94,17 @@ def summarize_and_filter(articles: list[dict], client: anthropic.Anthropic) -> s
     )
 
     try:
-        response = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=1500,
-            system=[
-                {
-                    "type": "text",
-                    "text": _SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[{"role": "user", "content": user_message}],
-        )
-    except anthropic.APIConnectionError as exc:
-        raise SummarizerError(f"Network error connecting to Claude API: {exc}") from exc
-    except anthropic.RateLimitError as exc:
-        raise SummarizerError(f"Claude API rate limit hit — try again shortly: {exc}") from exc
-    except anthropic.APIStatusError as exc:
-        raise SummarizerError(f"Claude API error {exc.status_code}: {exc.message}") from exc
+        response = client.generate_content(user_message)
+    except Exception as exc:
+        raise SummarizerError(f"Gemini API error: {exc}") from exc
 
-    usage = response.usage
+    if not response.text:
+        raise SummarizerError("Gemini returned an empty response")
+
     logger.info(
-        "Claude usage — input=%d  output=%d  cache_read=%d  cache_write=%d",
-        usage.input_tokens,
-        usage.output_tokens,
-        getattr(usage, "cache_read_input_tokens", 0),
-        getattr(usage, "cache_creation_input_tokens", 0),
+        "Gemini usage — input_tokens=%s  output_tokens=%s",
+        getattr(response.usage_metadata, "prompt_token_count", "?"),
+        getattr(response.usage_metadata, "candidates_token_count", "?"),
     )
 
-    if not response.content:
-        raise SummarizerError("Claude returned an empty response")
-
-    return response.content[0].text
+    return response.text
