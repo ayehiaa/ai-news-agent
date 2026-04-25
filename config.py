@@ -15,7 +15,7 @@ RECENCY_HOURS = 48
 MAX_ARTICLES_PER_FEED = 5
 MAX_TOTAL_ARTICLES = 30
 
-GEMINI_MODEL = "gemini-2.0-flash"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 EMAIL_WORD_LIMIT = 600
 
 SMTP_HOST = "smtp.gmail.com"

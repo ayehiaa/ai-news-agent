@@ -1,9 +1,9 @@
 import datetime
 import logging
 
-import google.generativeai as genai
+from groq import Groq, APIConnectionError, RateLimitError, APIStatusError
 
-from config import EMAIL_WORD_LIMIT, GEMINI_MODEL
+from config import EMAIL_WORD_LIMIT, GROQ_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +60,8 @@ class SummarizerError(Exception):
     pass
 
 
-def get_gemini_client(api_key: str) -> genai.GenerativeModel:
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        system_instruction=_SYSTEM_PROMPT,
-    )
+def get_groq_client(api_key: str) -> Groq:
+    return Groq(api_key=api_key)
 
 
 def _build_article_payload(articles: list[dict]) -> str:
@@ -81,7 +77,7 @@ def _build_article_payload(articles: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def summarize_and_filter(articles: list[dict], client: genai.GenerativeModel) -> str:
+def summarize_and_filter(articles: list[dict], client: Groq) -> str:
     today = datetime.date.today().strftime("%B %d, %Y")
     payload = _build_article_payload(articles)
 
@@ -94,17 +90,31 @@ def summarize_and_filter(articles: list[dict], client: genai.GenerativeModel) ->
     )
 
     try:
-        response = client.generate_content(user_message)
-    except Exception as exc:
-        raise SummarizerError(f"Gemini API error: {exc}") from exc
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            max_tokens=1500,
+            temperature=0.4,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+        )
+    except APIConnectionError as exc:
+        raise SummarizerError(f"Network error connecting to Groq: {exc}") from exc
+    except RateLimitError as exc:
+        raise SummarizerError(f"Groq rate limit hit — try again shortly: {exc}") from exc
+    except APIStatusError as exc:
+        raise SummarizerError(f"Groq API error {exc.status_code}: {exc.message}") from exc
 
-    if not response.text:
-        raise SummarizerError("Gemini returned an empty response")
+    text = response.choices[0].message.content
+    if not text:
+        raise SummarizerError("Groq returned an empty response")
 
+    usage = response.usage
     logger.info(
-        "Gemini usage — input_tokens=%s  output_tokens=%s",
-        getattr(response.usage_metadata, "prompt_token_count", "?"),
-        getattr(response.usage_metadata, "candidates_token_count", "?"),
+        "Groq usage — input_tokens=%d  output_tokens=%d",
+        usage.prompt_tokens,
+        usage.completion_tokens,
     )
 
-    return response.text
+    return text

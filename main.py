@@ -4,7 +4,7 @@ import sys
 
 from dotenv import load_dotenv
 
-from ai_summarizer import SummarizerError, get_gemini_client, summarize_and_filter
+from ai_summarizer import SummarizerError, get_groq_client, summarize_and_filter
 from config import MAX_TOTAL_ARTICLES, RECENCY_HOURS, RSS_FEEDS
 from email_sender import EmailSendError, send_email
 from news_collector import collect_all_articles
@@ -22,7 +22,7 @@ def setup_logging() -> None:
 def load_and_validate_env() -> dict:
     load_dotenv()
     required = {
-        "GEMINI_API_KEY": "Google Gemini API key (free at aistudio.google.com)",
+        "GROQ_API_KEY": "Groq API key (free at console.groq.com — no billing needed)",
         "GMAIL_SENDER": "Gmail sender address",
         "GMAIL_APP_PASSWORD": "Gmail App Password (not your main password)",
         "RECIPIENT_EMAIL": "Recipient email address",
@@ -72,7 +72,7 @@ def run() -> int:
 
     logger.info("Sending %d articles to Gemini for filtering and summarization...", len(articles))
     try:
-        client = get_gemini_client(env["GEMINI_API_KEY"])
+        client = get_groq_client(env["GROQ_API_KEY"])
         email_body = summarize_and_filter(articles, client)
     except SummarizerError as exc:
         logger.error("Summarization failed: %s", exc)
